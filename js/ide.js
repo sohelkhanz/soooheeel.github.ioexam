@@ -1,5 +1,4 @@
-var defaultUrl = localStorageGetItem("api-url") || "https://rapidapi.com";
-var apiUrl = defaultUrl;
+
 var wait = localStorageGetItem("wait") || true;
 var check_timeout = 300;
 
@@ -81,265 +80,127 @@ var layoutConfig = {
     }]
 };
 
-function encode(str) {
-    return btoa(unescape(encodeURIComponent(str || "")));
-}
 
-function decode(bytes) {
-    var escaped = escape(atob(bytes || ""));
-    try {
-        return decodeURIComponent(escaped);
-    } catch {
-        return unescape(escaped);
-    }
-}
 
-function localStorageSetItem(key, value) {
-  try {
-    localStorage.setItem(key, value);
-  } catch (ignorable) {
-  }
-}
+API_KEY = "060d82312fmsh6cf76cc5caf6220p1b0ef1jsnc5a290c6b6d8"; // Get yours for free at https://judge0.com/ce or https://judge0.com/extra-ce
 
-function localStorageGetItem(key) {
-  try {
-    return localStorage.getItem(key);
-  } catch (ignorable) {
-    return null;
-  }
-}
+        
 
-function showMessages() {
-    var width = $updates.offset().left - parseFloat($updates.css("padding-left")) -
-                $navigationMessage.parent().offset().left - parseFloat($navigationMessage.parent().css("padding-left")) - 5;
-
-    if (width < 200 || messagesData === undefined) {
-        return;
-    }
-
-    var messages = messagesData["messages"];
-
-    $navigationMessage.css("animation-duration", messagesData["duration"]);
-    $navigationMessage.parent().width(width - 5);
-
-    var combinedMessage = "";
-    for (var i = 0; i < messages.length; ++i) {
-        combinedMessage += `${messages[i]}`;
-        if (i != messages.length - 1) {
-            combinedMessage += "&nbsp".repeat(Math.min(200, messages[i].length));
+        function encode(str) {
+            return btoa(unescape(encodeURIComponent(str || "")));
         }
-    }
 
-    $navigationMessage.html(combinedMessage);
-}
-
-function loadMessages() {
-    $.ajax({
-        url: `https://minio.judge0.com/public/ide/messages.json?${Date.now()}`,
-        type: "GET",
-        headers: {
-            "Accept": "application/json"
-        },
-        success: function (data, textStatus, jqXHR) {
-            messagesData = data;
-            showMessages();
+        function decode(bytes) {
+            var escaped = escape(atob(bytes || ""));
+            try {
+                return decodeURIComponent(escaped);
+            } catch {
+                return unescape(escaped);
+            }
         }
-    });
-}
 
-function showError(title, content) {
-    $("#site-modal #title").html(title);
-    $("#site-modal .content").html(content);
-    $("#site-modal").modal("show");
-}
-
-function handleError(jqXHR, textStatus, errorThrown) {
-    showError(`${jqXHR.statusText} (${jqXHR.status})`, `<pre>${JSON.stringify(jqXHR, null, 4)}</pre>`);
-}
-
-function handleRunError(jqXHR, textStatus, errorThrown) {
-    handleError(jqXHR, textStatus, errorThrown);
-    $runBtn.removeClass("loading");
-}
-
-function handleResult(data) {
-    timeEnd = performance.now();
-    console.log("It took " + (timeEnd - timeStart) + " ms to get submission result.");
-
-    var status = data.status;
-    var stdout = decode(data.stdout);
-    var compile_output = decode(data.compile_output);
-    var time = (data.time === null ? "-" : data.time + "s");
-    var memory = (data.memory === null ? "-" : data.memory + "KB");
-
-    $statusLine.html(`${status.description}, ${time}, ${memory}`);
-
-    if (blinkStatusLine) {
-        $statusLine.addClass("blink");
-        setTimeout(function() {
-            blinkStatusLine = false;
-            localStorageSetItem("blink", "false");
-            $statusLine.removeClass("blink");
-        }, 3000);
-    }
-
-    var output = [compile_output, stdout].join("\n").trim();
-
-    stdoutEditor.setValue(output);
-
-    if (output !== "") {
-        var dot = document.getElementById("stdout-dot");
-        if (!dot.parentElement.classList.contains("lm_active")) {
-            dot.hidden = false;
+        function errorHandler(jqXHR, textStatus, errorThrown) {
+            $("#output").val(`${JSON.stringify(jqXHR, null, 4)}`);
+            $("#run").prop("disabled", false);
         }
-    }
 
-    $runBtn.removeClass("loading");
-}
-
-function getIdFromURI() {
-  var uri = location.search.substr(1).trim();
-  return uri.split("&")[0];
-}
-
-function downloadSource() {
-    var value = parseInt($selectLanguage.val());
-    download(sourceEditor.getValue(), fileNames[value], "text/plain");
-}
-
-function loadSavedSource() {
-    snippet_id = getIdFromURI();
-
-    if (snippet_id.length == 36) {
-        $.ajax({
-            url: apiUrl + "/submissions/" + snippet_id + "?fields=source_code,language_id,stdin,stdout,stderr,compile_output,message,time,memory,status,compiler_options,command_line_arguments&base64_encoded=true",
-            type: "GET",
-            success: function(data, textStatus, jqXHR) {
-                sourceEditor.setValue(decode(data["source_code"]));
-                $selectLanguage.dropdown("set selected", data["language_id"]);
-                $compilerOptions.val(data["compiler_options"]);
-                $commandLineArguments.val(data["command_line_arguments"]);
-                stdinEditor.setValue(decode(data["stdin"]));
-                stdoutEditor.setValue(decode(data["stdout"]));
-                var time = (data.time === null ? "-" : data.time + "s");
-                var memory = (data.memory === null ? "-" : data.memory + "KB");
-                $statusLine.html(`${data.status.description}, ${time}, ${memory}`);
-                changeEditorLanguage();
-            },
-            error: handleRunError
-        });
-    } else {
-        loadRandomLanguage();
-    }
-}
-
-function run() {
-    if (sourceEditor.getValue().trim() === "") {
-        showError("Error", "Source code can't be empty!");
-        return;
-    } else {
-        $runBtn.addClass("loading");
-    }
-
-    document.getElementById("stdout-dot").hidden = true;
-
-    stdoutEditor.setValue("");
-
-    var x = layout.root.getItemsById("stdout")[0];
-    x.parent.header.parent.setActiveContentItem(x);
-
-    var sourceValue = encode(sourceEditor.getValue());
-    var stdinValue = encode(stdinEditor.getValue());
-    var languageId = resolveLanguageId($selectLanguage.val());
-    var compilerOptions = $compilerOptions.val();
-    var commandLineArguments = $commandLineArguments.val();
-
-    if (parseInt(languageId) === 44) {
-        sourceValue = sourceEditor.getValue();
-    }
-
-    var data = {
-        source_code: sourceValue,
-        language_id: languageId,
-        stdin: stdinValue,
-        compiler_options: compilerOptions,
-        command_line_arguments: commandLineArguments,
-        redirect_stderr_to_stdout: true
-    };
-
-    var sendRequest = function(data) {
-        timeStart = performance.now();
-        $.ajax({
-            url: apiUrl + `/submissions?base64_encoded=true&wait=${wait}`,
-            type: "POST",
-            async: true,
-            contentType: "application/json",
-            headers:{
-        "x-rapidapi-host": "judge0-ce.p.rapidapi.com",
-	"x-rapidapi-key": "060d82312fmsh6cf76cc5caf6220p1b0ef1jsnc5a290c6b6d8"
-         },
-            data: JSON.stringify(data),
-            xhrFields: {
-                withCredentials: apiUrl.indexOf("/secure") != -1 ? true : false
-            },
-            success: function (data, textStatus, jqXHR) {
-                console.log(`Your submission token is: ${data.token}`);
-                if (wait == true) {
-                    handleResult(data);
-                } else {
-                    setTimeout(fetchSubmission.bind(null, data.token), check_timeout);
-                }
-            },
-            error: handleRunError
-        });
-    }
-
-    var fetchAdditionalFiles = false;
-    if (parseInt(languageId) === 82) {
-        if (sqliteAdditionalFiles === "") {
-            fetchAdditionalFiles = true;
+        function check(token) {
+            $("#output").val($("#output").val() + "\n⏬ Checking submission status...");
             $.ajax({
-                url: `https://minio.judge0.com/public/ide/sqliteAdditionalFiles.base64.txt?${Date.now()}`,
+                url: `https://judge0-ce.p.rapidapi.com/submissions/${token}?base64_encoded=true`,
                 type: "GET",
-                async: true,
-                contentType: "text/plain",
-                success: function (responseData, textStatus, jqXHR) {
-                    sqliteAdditionalFiles = responseData;
-                    data["additional_files"] = sqliteAdditionalFiles;
-                    sendRequest(data);
+                headers: {
+                    "x-rapidapi-host": "judge0-ce.p.rapidapi.com",
+	                "x-rapidapi-key": API_KEY
                 },
-                error: handleRunError
+                success: function (data, textStatus, jqXHR) {
+                    if ([1, 2].includes(data["status"]["id"])) {
+                        $("#output").val($("#output").val() + "\nℹ️ Status: " + data["status"]["description"]);
+                        setTimeout(function() { check(token) }, 1000);
+                    }
+                    else {
+                        var output = [decode(data["compile_output"]), decode(data["stdout"])].join("\n").trim();
+                        $("#output").val(`${data["status"]["id"] != "3" ? "🔴" : "🟢"} ${data["status"]["description"]}\n${output}`);
+                        $("#run").prop("disabled", false);
+                    }
+                },
+                error: errorHandler
             });
         }
-        else {
-            data["additional_files"] = sqliteAdditionalFiles;
-        }
-    }
 
-    if (!fetchAdditionalFiles) {
-        sendRequest(data);
-    }
-}
+        function run() {
+            $("#run").prop("disabled", true);
+            $("#output").val("⚙️ Creating submission...");
 
-function fetchSubmission(submission_token) {
-    $.ajax({
-        url: apiUrl + "/submissions/" + submission_token + "?base64_encoded=true",
-        type: "GET",
-        headers:{
-        "x-rapidapi-host": "judge0-ce.p.rapidapi.com",
-	"x-rapidapi-key": "060d82312fmsh6cf76cc5caf6220p1b0ef1jsnc5a290c6b6d8"
-         },
-        async: true,
-        success: function (data, textStatus, jqXHR) {
-            if (data.status.id <= 2) { // In Queue or Processing
-                setTimeout(fetchSubmission.bind(null, submission_token), check_timeout);
-                return;
+            let encodedExpectedOutput = encode($("#expected-output").val());
+            if (encodedExpectedOutput === "") {
+                encodedExpectedOutput = null; // Assume that user does not want to use expected output if it is empty.
             }
-            handleResult(data);
-        },
-        error: handleRunError
-    });
-}
+
+            $.ajax({
+                url: "https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=true&wait=false",
+                type: "POST",
+                contentType: "application/json",
+                headers: {
+                    "x-rapidapi-host": "judge0-ce.p.rapidapi.com",
+	                "x-rapidapi-key": API_KEY
+                },
+                data: JSON.stringify({
+                    "language_id": language_to_id[$("#lang").val()],
+                    "source_code": encode($("#source").val()),
+                    "stdin": encode($("#input").val()),
+                    "expected_output": encodedExpectedOutput,
+                    "redirect_stderr_to_stdout": true
+                }),
+                success: function(data, textStatus, jqXHR) {
+                    $("#output").val($("#output").val() + "\n🎉 Submission created.");
+                    setTimeout(function() { check(data["token"]) }, 2000);
+                },
+                error: errorHandler
+            });
+        }
+
+        $("body").keydown(function (e) {
+            if (e.ctrlKey && e.keyCode == 13) {
+                run();
+            }
+        });
+
+        $("textarea").keydown(function (e) {
+            if (e.keyCode == 9) {
+                e.preventDefault();
+                var start = this.selectionStart;
+                var end = this.selectionEnd;
+
+                var append = "    ";
+                $(this).val($(this).val().substring(0, start) + append + $(this).val().substring(end));
+
+                this.selectionStart = this.selectionEnd = start + append.length;
+            }
+        });
+
+        $("#source").focus();
+
+
+
+
+
+    
+
+
+
+
+
+
+
+
+
+    
+
+
+  
+    
+    
 
 function changeEditorLanguage() {
     monaco.editor.setModelLanguage(sourceEditor.getModel(), $selectLanguage.find(":selected").attr("mode"));
