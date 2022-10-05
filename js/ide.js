@@ -274,6 +274,10 @@ function run() {
             type: "POST",
             async: true,
             contentType: "application/json",
+            headers:{
+        "x-rapidapi-host": "judge0-ce.p.rapidapi.com",
+	"x-rapidapi-key": "060d82312fmsh6cf76cc5caf6220p1b0ef1jsnc5a290c6b6d8"
+         },
             data: JSON.stringify(data),
             xhrFields: {
                 withCredentials: apiUrl.indexOf("/secure") != -1 ? true : false
@@ -321,6 +325,10 @@ function fetchSubmission(submission_token) {
     $.ajax({
         url: apiUrl + "/submissions/" + submission_token + "?base64_encoded=true",
         type: "GET",
+        headers:{
+        "x-rapidapi-host": "judge0-ce.p.rapidapi.com",
+	"x-rapidapi-key": "060d82312fmsh6cf76cc5caf6220p1b0ef1jsnc5a290c6b6d8"
+         },
         async: true,
         success: function (data, textStatus, jqXHR) {
             if (data.status.id <= 2) { // In Queue or Processing
