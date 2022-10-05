@@ -81,18 +81,7 @@ var layoutConfig = {
     }]
 };
 
-function encode(str) {
-    return btoa(unescape(encodeURIComponent(str || "")));
-}
 
-function decode(bytes) {
-    var escaped = escape(atob(bytes || ""));
-    try {
-        return decodeURIComponent(escaped);
-    } catch {
-        return unescape(escaped);
-    }
-}
 
 function localStorageSetItem(key, value) {
   try {
@@ -233,89 +222,8 @@ function loadSavedSource() {
     }
 }
 
-function run() {
-    if (sourceEditor.getValue().trim() === "") {
-        showError("Error", "Source code can't be empty!");
-        return;
-    } else {
-        $runBtn.addClass("loading");
-    }
 
-    document.getElementById("stdout-dot").hidden = true;
-
-    stdoutEditor.setValue("");
-
-    var x = layout.root.getItemsById("stdout")[0];
-    x.parent.header.parent.setActiveContentItem(x);
-
-    var sourceValue = encode(sourceEditor.getValue());
-    var stdinValue = encode(stdinEditor.getValue());
-    var languageId = resolveLanguageId($selectLanguage.val());
-    var compilerOptions = $compilerOptions.val();
-    var commandLineArguments = $commandLineArguments.val();
-
-    if (parseInt(languageId) === 44) {
-        sourceValue = sourceEditor.getValue();
-    }
-
-    var data = {
-        source_code: sourceValue,
-        language_id: languageId,
-        stdin: stdinValue,
-        compiler_options: compilerOptions,
-        command_line_arguments: commandLineArguments,
-        redirect_stderr_to_stdout: true
-    };
-
-    var sendRequest = function(data) {
-        timeStart = performance.now();
-        $.ajax({
-            url: apiUrl + `/submissions?base64_encoded=true&wait=${wait}`,
-            type: "POST",
-            async: true,
-            contentType: "application/json",
-            data: JSON.stringify(data),
-            xhrFields: {
-                withCredentials: apiUrl.indexOf("/secure") != -1 ? true : false
-            },
-            success: function (data, textStatus, jqXHR) {
-                console.log(`Your submission token is: ${data.token}`);
-                if (wait == true) {
-                    handleResult(data);
-                } else {
-                    setTimeout(fetchSubmission.bind(null, data.token), check_timeout);
-                }
-            },
-            error: handleRunError
-        });
-    }
-
-    var fetchAdditionalFiles = false;
-    if (parseInt(languageId) === 82) {
-        if (sqliteAdditionalFiles === "") {
-            fetchAdditionalFiles = true;
-            $.ajax({
-                url: `https://minio.judge0.com/public/ide/sqliteAdditionalFiles.base64.txt?${Date.now()}`,
-                type: "GET",
-                async: true,
-                contentType: "text/plain",
-                success: function (responseData, textStatus, jqXHR) {
-                    sqliteAdditionalFiles = responseData;
-                    data["additional_files"] = sqliteAdditionalFiles;
-                    sendRequest(data);
-                },
-                error: handleRunError
-            });
-        }
-        else {
-            data["additional_files"] = sqliteAdditionalFiles;
-        }
-    }
-
-    if (!fetchAdditionalFiles) {
-        sendRequest(data);
-    }
-}
+    
 
 function fetchSubmission(submission_token) {
     $.ajax({
